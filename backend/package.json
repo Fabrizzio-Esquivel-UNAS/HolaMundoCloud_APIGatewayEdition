@@ -1,0 +1,8 @@
+{
+    "name": "lambda-backend",
+    "version": "1.0.0",
+    "description": "Backend Lambda function",
+    "main": "handler.js",
+    "dependencies": {}
+  }
+  
