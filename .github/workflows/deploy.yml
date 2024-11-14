@@ -8,7 +8,7 @@ on:
 env:
   AWS_REGION: us-east-2
   LAMBDA_NAME: arn:aws:lambda:us-east-2:676206932076:function:BackendLambdaFunction
-  BUCKET_NAME: arn:aws:s3:::hola-mundo-cloud-bucket
+  BUCKET_NAME: hola-mundo-cloud-bucket
 
 jobs:
   backend:
