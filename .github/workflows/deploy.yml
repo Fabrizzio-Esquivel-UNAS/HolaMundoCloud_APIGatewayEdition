@@ -7,6 +7,7 @@ on:
 
 env:
   AWS_REGION: us-east-2
+  LAMBDA_NAME: arn:aws:lambda:us-east-2:676206932076:function:BackendLambdaFunction
 
 jobs:
   backend:
@@ -15,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v3
@@ -31,7 +32,7 @@ jobs:
 
       - name: Update Lambda Code
         run: |
-          aws lambda update-function-code --function-name ${{ secrets.LAMBDA_NAME }} \
+          aws lambda update-function-code --function-name ${{ env.LAMBDA_NAME }} \
             --zip-file fileb://lambda_function.zip
 
   frontend:
@@ -40,7 +41,7 @@ jobs:
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
