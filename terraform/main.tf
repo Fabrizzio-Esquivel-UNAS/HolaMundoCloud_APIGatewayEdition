@@ -3,187 +3,148 @@ provider "aws" {
   region = var.aws_region
 }
 
-# S3 Bucket for Static Website Hosting (Frontend)
-resource "aws_s3_bucket" "frontend_bucket" {
-  bucket = var.bucket_name
+# Create an ECS cluster using EC2
+resource "aws_ecs_cluster" "node_app_cluster" {
+  name = "HolaMundoCloud-cluster"
+}
 
-  tags = {
-    Name = "StaticFrontendBucket"
+# IAM role for the ECS task execution
+resource "aws_iam_role" "ecs_role" {
+  name = "ecs_role_HolaMundoCloud"
+
+  assume_role_policy = <<POLICY
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "ecs-tasks.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+POLICY
+}
+
+resource "aws_iam_role_policy_attachment" "ecs_policy_attachment" {
+  role = "${aws_iam_role.ecs_role.name}"
+
+  // This policy adds logging + ecr permissions
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+}
+
+# Create the Launch Template
+resource "aws_launch_template" "ecs_launch_template" {
+  name_prefix   = "ecs-launch-template-"
+  image_id      = "ami-0e593d2b811299b15"  # Amazon Linux 2 AMI, change to the latest in your region
+  instance_type = "t2.micro"               # Free tier eligible instance type
+  # Use an existing key pair
+  key_name = var.aws_key_name
+
+  iam_instance_profile {
+    name = aws_iam_instance_profile.ecs_instance_profile.name
+  }
+
+  network_interfaces {
+    associate_public_ip_address = true
+    security_groups             = [aws_security_group.ecs_sg.id]
+  }
+
+  # Script to configure the instance, install Docker, and run the Node.js app as a Docker container
+  user_data = base64encode(<<-EOF
+              #!/bin/bash
+              # Update the instance
+              sudo yum update -y
+
+              # Install Docker
+              sudo amazon-linux-extras install docker -y
+              sudo service docker start
+              sudo usermod -a -G docker ec2-user
+
+              # Install Git
+              sudo yum install -y git
+
+              # Clone your Node.js app from the Git repository (replace with your repo)
+              cd /home/ec2-user
+              git clone https://github.com/Fabrizzio-Esquivel-UNAS/ConciertoCristoCI.git nodeapp
+              cd nodeapp
+
+              cd fabrizzio-service
+              # Build the Docker image
+              sudo docker build -t nodeapp2 .              
+              # Run the Docker container
+              sudo docker run -d -p 80:3001 nodeapp2
+
+              cd ..
+              cd sumaran-service
+              # Build the Docker image
+              sudo docker build -t nodeapp1 .              
+              # Run the Docker container
+              sudo docker run -d -p 80:3000 nodeapp1
+              EOF
+  )
+}
+
+# ECS instance profile
+resource "aws_iam_instance_profile" "ecs_instance_profile" {
+  name = "ecsInstanceProfile_HolaMundoCloud"
+  role = aws_iam_role.ecs_instance_role.name
+}
+
+# IAM role for ECS EC2 instances
+data "aws_iam_policy_document" "instance_assume_role_policy" {
+  statement {
+    actions = ["sts:AssumeRole"]
+
+    principals {
+      type        = "Service"
+      identifiers = ["ec2.amazonaws.com"]
+    }
   }
 }
 
-resource "aws_s3_bucket_cors_configuration" "bucket_cors" {
-  bucket = aws_s3_bucket.frontend_bucket.id
-
-  cors_rule {
-    allowed_methods = ["GET"]
-    allowed_origins = ["*"]
-    allowed_headers = ["*"]
-    max_age_seconds = 3000
-  }
+resource "aws_iam_role" "ecs_instance_role" {
+  name               = "ecsInstanceRole_HolaMundoCloud"
+  path               = "/system/"
+  assume_role_policy = data.aws_iam_policy_document.instance_assume_role_policy.json
 }
 
-# Disable public access block settings for the S3 bucket to allow public access
-resource "aws_s3_bucket_public_access_block" "frontend_public_access" {
-  bucket = aws_s3_bucket.frontend_bucket.id
+# ECS Task Definition
+resource "aws_ecs_task_definition" "node_app_task" {
+  family                   = "HolaMundoCloud-task"
+  network_mode             = "awsvpc"
+  execution_role_arn       = aws_iam_role.ecs_role.arn
+  memory                   = "512"
+  cpu                      = "256"
 
-  block_public_acls   = false
-  block_public_policy = false
-  restrict_public_buckets = false
-  ignore_public_acls  = false
-}
-
-resource "aws_s3_bucket_ownership_controls" "ownership_controls_config_bucket" {
-  bucket = aws_s3_bucket.frontend_bucket.id
-
-  rule {
-    object_ownership = "ObjectWriter"
-  }
-}
-
-resource "aws_s3_bucket_acl" "bucket_acl" {
-  bucket = aws_s3_bucket.frontend_bucket.id
-  acl    = "public-read"
-}
-
-resource "aws_s3_bucket_website_configuration" "web_config" {
-  bucket = aws_s3_bucket.frontend_bucket.id
-
-  index_document {
-    suffix = "index.html"
-  }
-
-  error_document {
-    key = "error.html"
-  }
-}
-
-# Policy to allow public read on objects within the bucket
-resource "aws_s3_bucket_policy" "public_policy" {
-  bucket = aws_s3_bucket.frontend_bucket.id
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Sid       = "PublicReadGetObject",
-        Effect    = "Allow",
-        Principal = "*",
-        Action    = "s3:GetObject",
-        Resource  = "${aws_s3_bucket.frontend_bucket.arn}/*"
-      }
-    ]
-  })
-}
-
-# Lambda Execution Role
-resource "aws_iam_role" "lambda_exec_role" {
-  name = "lambda_exec_role"
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action    = "sts:AssumeRole",
-        Effect    = "Allow",
-        Principal = {
-          Service = "lambda.amazonaws.com"
+  container_definitions = jsonencode([
+    {
+      name      = "HolaMundoCloud",
+      image     = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/HolaMundoCloud:latest",
+      essential = true,
+      portMappings = [
+        {
+          containerPort = 3000
+          hostPort      = 3000  # Change hostPort to match the containerPort if using awsvpc
         }
-      }
-    ]
-  })
-}
-
-# Attach basic Lambda execution policy to the role
-resource "aws_iam_role_policy_attachment" "lambda_basic_policy" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Use the `archive_file` data source to package `index.js` into a ZIP file
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_file = "${path.root}/../backend/index.js"  # Adjust path if `index.js` is located elsewhere
-  output_path = "${path.root}/../lambda_function.zip"
-}
-
-# Lambda Function Definition (Code Deployment handled via CI/CD)
-resource "aws_lambda_function" "backend_lambda" {
-  function_name = var.lambda_name
-  role          = aws_iam_role.lambda_exec_role.arn
-  handler       = "index.handler"    # Adjust handler path as per your code
-  runtime       = "nodejs18.x"
-  
-  # Code will be deployed by CI/CD
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
-
-  environment {
-    variables = {
-      SECRET_KEY = var.secret_key
+      ]
     }
+  ])
+}
+
+# ECS Service to manage the running tasks
+resource "aws_ecs_service" "node_app_service" {
+  name            = "HolaMundoCloud-service"
+  cluster         = aws_ecs_cluster.node_app_cluster.id
+  task_definition = aws_ecs_task_definition.node_app_task.arn
+  desired_count   = 1
+  launch_type     = "EC2"
+
+  network_configuration {
+    subnets         = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    security_groups = [aws_security_group.ecs_sg.id]
   }
-
-  tags = {
-    Name = "BackendLambdaFunction"
-  }
-}
-
-# API Gateway for Lambda
-resource "aws_api_gateway_rest_api" "api_gateway" {
-  name        = "FrontendBackendAPI"
-  description = "API Gateway for frontend-backend communication"
-}
-
-resource "aws_api_gateway_resource" "proxy" {
-  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  parent_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
-  path_part   = "{proxy+}"
-}
-
-resource "aws_api_gateway_method" "proxy_method" {
-  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
-  resource_id   = aws_api_gateway_resource.proxy.id
-  http_method   = "ANY"
-  authorization = "NONE"
-}
-
-resource "aws_api_gateway_method_response" "cors_method_response_200" {
-    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
-    resource_id   = "${aws_api_gateway_resource.proxy.id}"
-    http_method   = "${aws_api_gateway_method.proxy_method.http_method}"
-    status_code   = "200"
-    response_parameters = {
-        "method.response.header.Access-Control-Allow-Origin" = true
-    }
-    depends_on = ["aws_api_gateway_method.proxy_method"]
-}
-
-# API Gateway Integration with Lambda
-resource "aws_api_gateway_integration" "lambda_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.api_gateway.id
-  resource_id             = aws_api_gateway_resource.proxy.id
-  http_method             = aws_api_gateway_method.proxy_method.http_method
-  integration_http_method = "POST"
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.backend_lambda.invoke_arn
-}
-
-# Deployment of the API
-resource "aws_api_gateway_deployment" "api_deployment" {
-  depends_on  = [aws_api_gateway_integration.lambda_integration]
-  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-}
-
-resource "aws_api_gateway_stage" "example" {
-  deployment_id = aws_api_gateway_deployment.api_deployment.id
-  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
-  stage_name    = "cloud"
-}
-
-# Lambda Permission for API Gateway Invocation
-resource "aws_lambda_permission" "api_gateway_invocation" {
-  statement_id  = "AllowAPIGatewayInvoke"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.backend_lambda.function_name
-  principal     = "apigateway.amazonaws.com"
-  source_arn    = "${aws_api_gateway_rest_api.api_gateway.execution_arn}/*/*"
 }
