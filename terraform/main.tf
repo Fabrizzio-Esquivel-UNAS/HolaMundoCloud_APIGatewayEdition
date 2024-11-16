@@ -71,6 +71,7 @@ resource "aws_launch_template" "ecs_launch_template" {
                 # Install Docker Compose
                 sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
                 sudo chmod +x /usr/local/bin/docker-compose
+                sudo ln -s /usr/local/bin/docker-compose /usr/bin/docker-compose
 
                 # Clone your Node.js app from the Git repository
                 cd /home/ec2-user
