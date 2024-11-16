@@ -6,7 +6,7 @@ on:
       - main
 
 env:
-  EC2_HOST: ec2-3-137-193-161.us-east-2.compute.amazonaws.com  # Define EC2_HOST globally
+  EC2_HOST: ec2-18-188-85-255.us-east-2.compute.amazonaws.com  # Define EC2_HOST globally
 
 jobs:
   install-dependencies:
