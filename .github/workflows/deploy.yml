@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  EC2_HOST: ec2-3-137-193-161.us-east-2.compute.amazonaws.com  # Define EC2_HOST globally
+
 jobs:
   install-dependencies:
     runs-on: ubuntu-latest
@@ -41,8 +44,6 @@ jobs:
           chmod 600 ec2_key.pem
 
       - name: Delete previous distribution on EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" << 'EOF'
             #!/bin/bash
@@ -69,8 +70,6 @@ jobs:
           EOF
 
       - name: Build and Run Docker Container on EC2
-        env:
-          EC2_HOST: ${{ secrets.EC2_HOST }}
         run: |
           ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" << 'EOF'
             #!/bin/bash
