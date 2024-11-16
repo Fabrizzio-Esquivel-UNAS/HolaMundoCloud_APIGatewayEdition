@@ -1,57 +1,88 @@
-# name: Deploy NodeJS App Infrastructure and Code
+name: CI/CD Pipeline
 
-# on:
-#   push:
-#     branches:
-#       - main
+on:
+  push:
+    branches:
+      - main
 
-# env:
-#   AWS_REGION: us-east-2
-#   LAMBDA_NAME: arn:aws:lambda:us-east-2:676206932076:function:BackendLambdaFunction
-#   BUCKET_NAME: hola-mundo-cloud-bucket
+jobs:
+  install-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-# jobs:
-#   backend:
-#     name: Deploy Backend (Lambda Function)
-#     runs-on: ubuntu-latest
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
 
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v3
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v3
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ env.AWS_REGION }}
+      - name: Install dependencies
+        run: |
+          echo "Running as user $(whoami)"
+          echo "INSTALLING NPM ......"
+          npm install
 
-#       - name: Zip Backend Code
-#         run: |
-#           cd backend
-#           zip -r ../lambda_function.zip .
+  deploy:
+    runs-on: ubuntu-latest
+    needs: install-dependencies
+    steps:
+      - name: Set up SSH key
+        run: |
+          echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
+          chmod 600 ec2_key.pem
 
-#       - name: Update Lambda Code
-#         run: |
-#           aws lambda update-function-code --function-name ${{ env.LAMBDA_NAME }} \
-#             --zip-file fileb://lambda_function.zip
+      - name: Delete previous distribution on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" << 'EOF'
+            #!/bin/bash
 
-#   frontend:
-#     name: Deploy Frontend (S3 Static Website)
-#     runs-on: ubuntu-latest
+            # Stop all running Docker containers
+            echo "Stopping all Docker containers..."
+            sudo docker stop $(sudo docker ps -q) || echo "No running containers to stop."
 
-#     steps:
-#       - name: Checkout Code
-#         uses: actions/checkout@v3
+            # Remove all Docker containers
+            echo "Removing all Docker containers..."
+            sudo docker rm $(sudo docker ps -aq) || echo "No containers to remove."
 
-#       - name: Configure AWS Credentials
-#         uses: aws-actions/configure-aws-credentials@v1
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ env.AWS_REGION }}
+            # Remove all Docker images
+            echo "Removing all Docker images..."
+            sudo docker rmi $(sudo docker images -q) || echo "No Docker images to remove."
 
-#       - name: Sync Frontend to S3
-#         run: |
-#           aws s3 sync frontend/ s3://${{ env.BUCKET_NAME }} \
-#             --acl public-read
+            # Clean up old application directory
+            echo "Removing the old application directory..."
+            sudo rm -rf /home/ec2-user/nodeapp
+
+            # List contents of the application directory for verification
+            echo "Listing /home/ec2-user/:"
+            ls /home/ec2-user/
+          EOF
+
+      - name: Build and Run Docker Container on EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" << 'EOF'
+            #!/bin/bash
+
+            # Clone your Node.js app from the Git repository (replace with your repo)
+            cd /home/ec2-user
+            git clone https://github.com/Fabrizzio-Esquivel-UNAS/HolaMundoCloud_APIGatewayEdition.git nodeapp
+            cd nodeapp
+
+            # Run the services with Docker Compose
+            sudo docker-compose up --build -d
+          EOF
+
+      - name: Clean up SSH key
+        run: rm ec2_key.pem

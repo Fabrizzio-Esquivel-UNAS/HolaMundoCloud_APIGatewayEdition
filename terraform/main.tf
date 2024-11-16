@@ -1,6 +1,7 @@
 # Specify AWS provider version and region
 provider "aws" {
   region = var.aws_region
+  profile = var.aws_profile
 }
 
 # Create an ECS cluster using EC2
@@ -53,39 +54,78 @@ resource "aws_launch_template" "ecs_launch_template" {
     security_groups             = [aws_security_group.ecs_sg.id]
   }
 
-  # Script to configure the instance, install Docker, and run the Node.js app as a Docker container
+  # Script to configure the instance, install Docker, and run the services with Docker Compose
   user_data = base64encode(<<-EOF
-              #!/bin/bash
-              # Update the instance
-              sudo yum update -y
+                #!/bin/bash
+                # Update the instance
+                sudo yum update -y
 
-              # Install Docker
-              sudo amazon-linux-extras install docker -y
-              sudo service docker start
-              sudo usermod -a -G docker ec2-user
+                # Install Docker
+                sudo amazon-linux-extras install docker -y
+                sudo service docker start
+                sudo usermod -a -G docker ec2-user
 
-              # Install Git
-              sudo yum install -y git
+                # Install Git
+                sudo yum install -y git
 
-              # Clone your Node.js app from the Git repository (replace with your repo)
-              cd /home/ec2-user
-              git clone https://github.com/Fabrizzio-Esquivel-UNAS/ConciertoCristoCI.git nodeapp
-              cd nodeapp
+                # Install Docker Compose
+                sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
 
-              cd fabrizzio-service
-              # Build the Docker image
-              sudo docker build -t nodeapp2 .              
-              # Run the Docker container
-              sudo docker run -d -p 80:3001 nodeapp2
+                # Clone your Node.js app from the Git repository
+                cd /home/ec2-user
+                git clone https://github.com/Fabrizzio-Esquivel-UNAS/HolaMundoCloud_APIGatewayEdition.git nodeapp
+                cd nodeapp
 
-              cd ..
-              cd sumaran-service
-              # Build the Docker image
-              sudo docker build -t nodeapp1 .              
-              # Run the Docker container
-              sudo docker run -d -p 80:3000 nodeapp1
-              EOF
+                # Run the services with Docker Compose
+                sudo docker-compose up --build -d
+                EOF
   )
+}
+
+# Auto Scaling group to manage the EC2 instances for the ECS cluster
+resource "aws_autoscaling_group" "ecs_autoscaling_group" {
+  launch_template {
+    id      = aws_launch_template.ecs_launch_template.id
+    version = "$Latest"
+  }
+
+  min_size             = 1
+  max_size             = 1  # Adjust max_size to allow multiple instances
+  desired_capacity     = 1
+  vpc_zone_identifier  = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+
+  tag {
+    key                 = "Name"
+    value               = "HolaMundoCloud ECS Instance"
+    propagate_at_launch = true
+  }
+}
+
+resource "aws_autoscaling_policy" "cpu_policy" {
+  name                   = "scale_up_on_cpu"
+  scaling_adjustment      = 1
+  adjustment_type         = "ChangeInCapacity"
+  cooldown               = 300
+  autoscaling_group_name  = aws_autoscaling_group.ecs_autoscaling_group.name
+  metric_aggregation_type = "Average"
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpu_high" {
+  alarm_name          = "high_cpu_alarm"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 2
+  metric_name         = "CPUUtilization"
+  namespace           = "AWS/EC2"
+  period              = 120
+  statistic           = "Average"
+  threshold           = 70
+
+  alarm_actions       = [aws_autoscaling_policy.cpu_policy.arn]
+
+  dimensions = {
+    AutoScalingGroupName = aws_autoscaling_group.ecs_autoscaling_group.name
+  }
 }
 
 # ECS instance profile

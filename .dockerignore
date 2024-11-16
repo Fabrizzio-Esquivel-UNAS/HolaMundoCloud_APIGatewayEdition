@@ -1,0 +1,10 @@
+# Ignore all node_modules directories, regardless of location
+node_modules/
+
+# Ignore npm-debug.log files
+npm-debug.log
+
+# Ignore other unnecessary files
+*.log
+test/
+build/
