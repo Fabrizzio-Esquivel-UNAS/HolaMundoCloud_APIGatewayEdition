@@ -42,8 +42,9 @@ jobs:
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
           chmod 600 ec2_key.pem
-
       - name: Delete previous distribution on EC2
+        env:
+          EC2_HOST: ${{ env.EC2_HOST }}
         run: |
           ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" << 'EOF'
             #!/bin/bash
@@ -70,6 +71,8 @@ jobs:
           EOF
 
       - name: Build and Run Docker Container on EC2
+        env:
+          EC2_HOST: ${{ env.EC2_HOST }}      
         run: |
           ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST" << 'EOF'
             #!/bin/bash
