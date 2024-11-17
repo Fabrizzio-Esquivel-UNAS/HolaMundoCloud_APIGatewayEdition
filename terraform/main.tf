@@ -65,7 +65,7 @@ resource "aws_instance" "ecs_instance_1" {
   instance_type          = "t2.micro"
   key_name               = var.aws_key_name
   iam_instance_profile   = aws_iam_instance_profile.ecs_instance_profile.name
-  security_groups        = [aws_security_group.ecs_sg.name]
+  security_groups        = [aws_security_group.ecs_sg.id]
   subnet_id              = aws_subnet.public_a.id
   associate_public_ip_address = true
 
@@ -104,7 +104,7 @@ resource "aws_instance" "ecs_instance_2" {
   instance_type          = "t2.micro"
   key_name               = var.aws_key_name
   iam_instance_profile   = aws_iam_instance_profile.ecs_instance_profile.name
-  security_groups        = [aws_security_group.ecs_sg.name]
+  security_groups        = [aws_security_group.ecs_sg.id]
   subnet_id              = aws_subnet.public_b.id
   associate_public_ip_address = true
 
