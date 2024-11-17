@@ -6,8 +6,8 @@ on:
       - main
 
 env:
-  EC2_HOST_1: ec2-52-15-83-226.us-east-2.compute.amazonaws.com
-  EC2_HOST_2: ec2-3-143-218-94.us-east-2.compute.amazonaws.com
+  EC2_HOST_1: ec2-3-143-218-94.us-east-2.compute.amazonaws.com
+  EC2_HOST_2: ec2-52-15-83-226.us-east-2.compute.amazonaws.com
 
 jobs:
   install-dependencies:
