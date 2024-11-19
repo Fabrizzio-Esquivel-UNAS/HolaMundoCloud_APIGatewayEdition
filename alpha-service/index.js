@@ -1,7 +1,11 @@
 const express = require('express');
 const axios = require('axios');
+const cors = require('cors');
 const app = express();
 const port = 3000;
+
+// Use the CORS middleware
+app.use(cors());
 
 // Replace with your actual target endpoint
 const targetEndpoint = 'http://18.119.126.122:81';
