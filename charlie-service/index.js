@@ -8,7 +8,7 @@ const port = 3000;
 app.use(cors());
 
 // Replace with your actual target endpoint
-const targetEndpoint = 'http://3.17.109.61';
+const targetEndpoint = 'http://18.116.21.42:81';
 
 app.get('/', async (req, res) => {
     let targetResponseTime = 0;
@@ -17,10 +17,10 @@ app.get('/', async (req, res) => {
         const response = await axios.get(targetEndpoint); // Make a request to the other endpoint
         targetResponseTime = Date.now() - responseStartTime; // Calculate response time
     } catch (error) {
-        console.error('Error calling Charlie endpoint:', error.message);
+        console.error('Error calling Beta endpoint:', error.message);
     }
 
-    res.send(`Charlie Response Time: ${targetResponseTime}ms`);
+    res.send(`Beta Response Time: ${targetResponseTime}ms`);
 });
 
 app.listen(port, () => {

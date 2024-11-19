@@ -253,6 +253,22 @@ resource "aws_api_gateway_integration" "instance_1_integration" {
   type        = "HTTP"
   integration_http_method = "GET"
   uri         = "http://${aws_instance.ecs_instance_1.public_ip}/"
+  
+}
+
+resource "aws_api_gateway_integration_response" "instance_1_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  resource_id = aws_api_gateway_resource.instance_1_resource.id
+  http_method = aws_api_gateway_method_response.instance_1_method_response.http_method
+  status_code = aws_api_gateway_method_response.instance_1_method_response.status_code
+
+  # Transforms the backend JSON response to XML
+  response_templates = {
+    "application/json" = "#set($inputRoot = $input.path('$'))\n$inputRoot" # This simply returns the raw body from the backend
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+  }
 }
 
 # Define the resource for Instance 2 ("/instance2")
@@ -289,6 +305,21 @@ resource "aws_api_gateway_integration" "instance_2_integration" {
   type        = "HTTP"
   integration_http_method = "GET"
   uri         = "http://${aws_instance.ecs_instance_2.public_ip}/"
+}
+
+resource "aws_api_gateway_integration_response" "instance_2_integration_response" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  resource_id = aws_api_gateway_resource.instance_2_resource.id
+  http_method = aws_api_gateway_method_response.instance_2_method_response.http_method
+  status_code = aws_api_gateway_method_response.instance_2_method_response.status_code
+
+  # Transforms the backend JSON response to XML
+  response_templates = {
+    "application/json" = "#set($inputRoot = $input.path('$'))\n$inputRoot" # This simply returns the raw body from the backend
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+  }
 }
 
 # Update deployment dependencies
