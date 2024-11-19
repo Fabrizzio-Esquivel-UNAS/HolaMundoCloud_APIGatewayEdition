@@ -68,7 +68,10 @@ resource "aws_instance" "ecs_instance_1" {
   security_groups        = [aws_security_group.ecs_sg.id]
   subnet_id              = aws_subnet.public_a.id
   associate_public_ip_address = true
-
+  tags = {
+    Name = "ecs_instance_1"
+  }
+  
   user_data = base64encode(<<-EOF
                 #!/bin/bash
                 # Update the instance
@@ -107,6 +110,9 @@ resource "aws_instance" "ecs_instance_2" {
   security_groups        = [aws_security_group.ecs_sg.id]
   subnet_id              = aws_subnet.public_b.id
   associate_public_ip_address = true
+  tags = {
+    Name = "ecs_instance_2"
+  }
 
   user_data = base64encode(<<-EOF
               #!/bin/bash
@@ -134,3 +140,147 @@ resource "aws_instance" "ecs_instance_2" {
               EOF
   )
 }
+
+# S3 Bucket for Static Website Hosting (Frontend)
+resource "aws_s3_bucket" "frontend_bucket" {
+  bucket = var.bucket_name
+
+  tags = {
+    Name = "StaticFrontendBucket"
+  }
+}
+
+resource "aws_s3_bucket_cors_configuration" "bucket_cors" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  cors_rule {
+    allowed_methods = ["GET"]
+    allowed_origins = ["*"]
+    allowed_headers = ["*"]
+    max_age_seconds = 3000
+  }
+}
+
+# Disable public access block settings for the S3 bucket to allow public access
+resource "aws_s3_bucket_public_access_block" "frontend_public_access" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  block_public_acls   = false
+  block_public_policy = false
+  restrict_public_buckets = false
+  ignore_public_acls  = false
+}
+
+resource "aws_s3_bucket_ownership_controls" "ownership_controls_config_bucket" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  rule {
+    object_ownership = "ObjectWriter"
+  }
+}
+
+resource "aws_s3_bucket_acl" "bucket_acl" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+  acl    = "public-read"
+}
+
+resource "aws_s3_bucket_website_configuration" "web_config" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+
+  index_document {
+    suffix = "index.html"
+  }
+
+  error_document {
+    key = "error.html"
+  }
+}
+
+# Policy to allow public read on objects within the bucket
+resource "aws_s3_bucket_policy" "public_policy" {
+  bucket = aws_s3_bucket.frontend_bucket.id
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid       = "PublicReadGetObject",
+        Effect    = "Allow",
+        Principal = "*",
+        Action    = "s3:GetObject",
+        Resource  = "${aws_s3_bucket.frontend_bucket.arn}/*"
+      }
+    ]
+  })
+}
+
+# Define the API Gateway
+resource "aws_api_gateway_rest_api" "api_gateway" {
+  name = "HolaMundoAPI"
+  description = "API Gateway for frontend-backend communication"
+}
+
+# Define the root resource ("/")
+resource "aws_api_gateway_resource" "root_resource" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  parent_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  path_part   = "prod"
+}
+
+# Configure the GET method for API Gateway
+resource "aws_api_gateway_method" "get_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  resource_id   = aws_api_gateway_resource.root_resource.id
+  http_method   = "GET"
+  authorization = "NONE" # No authentication
+}
+
+# Integrate API Gateway with the first EC2 instance
+resource "aws_api_gateway_integration" "instance_1_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  resource_id = aws_api_gateway_resource.root_resource.id
+  http_method = aws_api_gateway_method.get_method.http_method
+  type        = "HTTP"
+  integration_http_method = "GET"
+  uri         = "http://${aws_instance.ecs_instance_1.public_ip}/"
+}
+
+# Integrate API Gateway with the second EC2 instance
+resource "aws_api_gateway_integration" "instance_2_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  resource_id = aws_api_gateway_resource.root_resource.id
+  http_method = aws_api_gateway_method.get_method.http_method
+  type        = "HTTP"
+  integration_http_method = "GET"
+  uri         = "http://${aws_instance.ecs_instance_2.public_ip}/"
+}
+
+# Deploy the API
+resource "aws_api_gateway_deployment" "api_deployment" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  depends_on = [
+    aws_api_gateway_integration.instance_1_integration,
+    aws_api_gateway_integration.instance_1_integration,
+    aws_api_gateway_resource.root_resource,
+    aws_api_gateway_method.get_method,
+  ]
+}
+
+resource "aws_api_gateway_stage" "api_stage" {
+  deployment_id = aws_api_gateway_deployment.api_deployment.id
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  stage_name    = "stage"
+}
+
+# Outputs for EC2 public IPs and API Gateway URL
+output "instance_1_public_ip" {
+  value = aws_instance.ecs_instance_1.public_ip
+}
+
+output "instance_2_public_ip" {
+  value = aws_instance.ecs_instance_2.public_ip
+}
+
+output "api_gateway_url" {
+  value = aws_api_gateway_deployment.api_deployment.invoke_url
+}
+

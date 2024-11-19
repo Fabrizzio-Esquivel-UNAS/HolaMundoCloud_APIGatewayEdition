@@ -6,9 +6,11 @@ on:
       - main
 
 env:
-  EC2_HOST_1: ec2-3-143-218-94.us-east-2.compute.amazonaws.com
-  EC2_HOST_2: ec2-52-15-83-226.us-east-2.compute.amazonaws.com
-
+  AWS_REGION: us-east-2
+  BUCKET_NAME: hola-mundo-cloud-bucket
+  EC2_HOST_1: 18.188.110.66
+  EC2_HOST_2: 3.128.91.91
+  
 jobs:
   install-dependencies:
     runs-on: ubuntu-latest
@@ -44,10 +46,8 @@ jobs:
           echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
           chmod 600 ec2_key.pem
       - name: Delete previous distribution on EC2
-        env:
-          EC2_HOST_1: ${{ env.EC2_HOST_1 }}
         run: |
-          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST_1" << 'EOF'
+          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"${{ env.EC2_HOST_1 }}" << 'EOF'
             #!/bin/bash
 
             # Stop all running Docker containers
@@ -73,7 +73,7 @@ jobs:
 
       - name: Build and Run Docker Container on EC2
         run: |
-          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST_1" << 'EOF'
+          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"${{ env.EC2_HOST_1 }}" << 'EOF'
             #!/bin/bash
 
             # Clone your Node.js app from the Git repository (replace with your repo)
@@ -96,11 +96,9 @@ jobs:
         run: |
           echo "${{ secrets.EC2_SSH_KEY }}" > ec2_key.pem
           chmod 600 ec2_key.pem
-      - name: Delete previous distribution on EC2
-        env:
-          EC2_HOST_2: ${{ env.EC2_HOST_2 }}      
+      - name: Delete previous distribution on EC2  
         run: |
-          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST_2" << 'EOF'
+          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"${{ env.EC2_HOST_2 }}" << 'EOF'
             #!/bin/bash
 
             # Stop all running Docker containers
@@ -126,7 +124,7 @@ jobs:
 
       - name: Build and Run Docker Container on EC2
         run: |
-          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"$EC2_HOST_2" << 'EOF'
+          ssh -i ec2_key.pem -o StrictHostKeyChecking=no ec2-user@"${{ env.EC2_HOST_2 }}" << 'EOF'
             #!/bin/bash
 
             # Clone your Node.js app from the Git repository (replace with your repo)
@@ -143,3 +141,23 @@ jobs:
 
       - name: Clean up SSH key
         run: rm ec2_key.pem
+
+  frontend:
+    name: Deploy Frontend (S3 Static Website)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Sync Frontend to S3
+        run: |
+          aws s3 sync frontend/ s3://${{ env.BUCKET_NAME }} \
+            --acl public-read
