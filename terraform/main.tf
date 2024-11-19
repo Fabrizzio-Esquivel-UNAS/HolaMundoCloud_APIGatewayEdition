@@ -219,49 +219,84 @@ resource "aws_api_gateway_rest_api" "api_gateway" {
   description = "API Gateway for frontend-backend communication"
 }
 
-# Define the root resource ("/")
-resource "aws_api_gateway_resource" "root_resource" {
+# Define the resource for Instance 1 ("/instance1")
+resource "aws_api_gateway_resource" "instance_1_resource" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
   parent_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
-  path_part   = "prod"
+  path_part   = "instance1"
 }
 
-# Configure the GET method for API Gateway
-resource "aws_api_gateway_method" "get_method" {
+# Define the GET method for Instance 1
+resource "aws_api_gateway_method" "instance_1_get_method" {
   rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
-  resource_id   = aws_api_gateway_resource.root_resource.id
+  resource_id   = aws_api_gateway_resource.instance_1_resource.id
   http_method   = "GET"
-  authorization = "NONE" # No authentication
+  authorization = "NONE"
 }
 
-# Integrate API Gateway with the first EC2 instance
+resource "aws_api_gateway_method_response" "instance_1_method_response" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.instance_1_resource.id}"
+    http_method   = "${aws_api_gateway_method.instance_1_get_method.http_method}"
+    status_code   = "200"
+    response_parameters = {
+        "method.response.header.Access-Control-Allow-Origin" = true
+    }
+    depends_on = [ aws_api_gateway_method.instance_1_get_method ]
+}
+
+# Integrate API Gateway with Instance 1
 resource "aws_api_gateway_integration" "instance_1_integration" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  resource_id = aws_api_gateway_resource.root_resource.id
-  http_method = aws_api_gateway_method.get_method.http_method
+  resource_id = aws_api_gateway_resource.instance_1_resource.id
+  http_method = aws_api_gateway_method.instance_1_get_method.http_method
   type        = "HTTP"
   integration_http_method = "GET"
   uri         = "http://${aws_instance.ecs_instance_1.public_ip}/"
 }
 
-# Integrate API Gateway with the second EC2 instance
+# Define the resource for Instance 2 ("/instance2")
+resource "aws_api_gateway_resource" "instance_2_resource" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  parent_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  path_part   = "instance2"
+}
+
+# Define the GET method for Instance 2
+resource "aws_api_gateway_method" "instance_2_get_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  resource_id   = aws_api_gateway_resource.instance_2_resource.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method_response" "instance_2_method_response" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.instance_2_resource.id}"
+    http_method   = "${aws_api_gateway_method.instance_2_get_method.http_method}"
+    status_code   = "200"
+    response_parameters = {
+        "method.response.header.Access-Control-Allow-Origin" = true
+    }
+    depends_on = [ aws_api_gateway_method.instance_2_get_method ]
+}
+
+# Integrate API Gateway with Instance 2
 resource "aws_api_gateway_integration" "instance_2_integration" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
-  resource_id = aws_api_gateway_resource.root_resource.id
-  http_method = aws_api_gateway_method.get_method.http_method
+  resource_id = aws_api_gateway_resource.instance_2_resource.id
+  http_method = aws_api_gateway_method.instance_2_get_method.http_method
   type        = "HTTP"
   integration_http_method = "GET"
   uri         = "http://${aws_instance.ecs_instance_2.public_ip}/"
 }
 
-# Deploy the API
+# Update deployment dependencies
 resource "aws_api_gateway_deployment" "api_deployment" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
   depends_on = [
     aws_api_gateway_integration.instance_1_integration,
-    aws_api_gateway_integration.instance_1_integration,
-    aws_api_gateway_resource.root_resource,
-    aws_api_gateway_method.get_method,
+    aws_api_gateway_integration.instance_2_integration,
   ]
 }
 

@@ -8,8 +8,9 @@ on:
 env:
   AWS_REGION: us-east-2
   BUCKET_NAME: hola-mundo-cloud-bucket
-  EC2_HOST_1: 18.188.110.66
-  EC2_HOST_2: 3.128.91.91
+  EC2_HOST_1: 18.119.126.122
+  EC2_HOST_2: 3.17.109.61
+  REPO_URL: https://github.com/Fabrizzio-Esquivel-UNAS/HolaMundoCloud_APIGatewayEdition.git
   
 jobs:
   install-dependencies:
@@ -78,7 +79,7 @@ jobs:
 
             # Clone your Node.js app from the Git repository (replace with your repo)
             cd /home/ec2-user
-            git clone https://github.com/Fabrizzio-Esquivel-UNAS/HolaMundoCloud_APIGatewayEdition.git nodeapp
+            git clone ${{ env.REPO_URL }} nodeapp
             cd nodeapp
 
             # Run the services with Docker Compose
