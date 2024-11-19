@@ -8,7 +8,7 @@ const port = 3000;
 app.use(cors());
 
 // Replace with your actual target endpoint
-const targetEndpoint = 'https://rvth3ucrcg.execute-api.us-east-2.amazonaws.com/stage/instance1_5';
+const targetEndpoint = 'http://18.118.208.28:443';
 
 app.get('/', async (req, res) => {
     let targetResponseTime = 0;
