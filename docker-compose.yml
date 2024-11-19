@@ -14,7 +14,7 @@ services:
     build:
       context: ./beta-service
     ports:
-      - "81:3001"
+      - "443:3001"
     restart: always
     networks:
       - nodejs-network

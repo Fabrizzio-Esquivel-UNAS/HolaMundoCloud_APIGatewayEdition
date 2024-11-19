@@ -271,6 +271,58 @@ resource "aws_api_gateway_integration_response" "instance_1_integration_response
   }
 }
 
+# Define the resource for Instance 1.5 ("/instance1_5")
+resource "aws_api_gateway_resource" "instance_15_resource" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  parent_id   = aws_api_gateway_rest_api.api_gateway.root_resource_id
+  path_part   = "instance1_5"
+}
+
+# Define the GET method for Instance 1.5
+resource "aws_api_gateway_method" "instance_15_get_method" {
+  rest_api_id   = aws_api_gateway_rest_api.api_gateway.id
+  resource_id   = aws_api_gateway_resource.instance_15_resource.id
+  http_method   = "GET"
+  authorization = "NONE"
+}
+
+resource "aws_api_gateway_method_response" "instance_15_method_response" {
+    rest_api_id   = "${aws_api_gateway_rest_api.api_gateway.id}"
+    resource_id   = "${aws_api_gateway_resource.instance_15_resource.id}"
+    http_method   = "${aws_api_gateway_method.instance_15_get_method.http_method}"
+    status_code   = "200"
+    response_parameters = {
+        "method.response.header.Access-Control-Allow-Origin" = true
+    }
+    depends_on = [ aws_api_gateway_method.instance_15_get_method ]
+}
+
+# Integrate API Gateway with Instance 1.5
+resource "aws_api_gateway_integration" "instance_15_integration" {
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  resource_id = aws_api_gateway_resource.instance_15_resource.id
+  http_method = aws_api_gateway_method.instance_15_get_method.http_method
+  type        = "HTTP"
+  integration_http_method = "GET"
+  uri         = "http://${aws_instance.ecs_instance_1.public_ip}:443/"
+}
+
+resource "aws_api_gateway_integration_response" "instance_15_integration_response" {
+  depends_on = [ aws_api_gateway_resource.instance_15_resource ]
+  rest_api_id = aws_api_gateway_rest_api.api_gateway.id
+  resource_id = aws_api_gateway_resource.instance_15_resource.id
+  http_method = aws_api_gateway_method_response.instance_15_method_response.http_method
+  status_code = aws_api_gateway_method_response.instance_15_method_response.status_code
+
+  # Transforms the backend JSON response to XML
+  response_templates = {
+    "application/json" = "#set($inputRoot = $input.path('$'))\n$inputRoot" # This simply returns the raw body from the backend
+  }
+  response_parameters = {
+    "method.response.header.Access-Control-Allow-Origin" = "'*'"
+  }
+}
+
 # Define the resource for Instance 2 ("/instance2")
 resource "aws_api_gateway_resource" "instance_2_resource" {
   rest_api_id = aws_api_gateway_rest_api.api_gateway.id
@@ -328,6 +380,7 @@ resource "aws_api_gateway_deployment" "api_deployment" {
   depends_on = [
     aws_api_gateway_integration.instance_1_integration,
     aws_api_gateway_integration.instance_2_integration,
+    aws_api_gateway_integration.instance_15_integration,
   ]
 }
 
