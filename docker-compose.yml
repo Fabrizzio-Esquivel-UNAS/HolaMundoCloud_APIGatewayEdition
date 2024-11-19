@@ -1,7 +1,7 @@
 version: "3.9"
 
 services:
-  fabrizzio-service:
+  alpha-service:
     build:
       context: ./alpha-service
     ports:
@@ -10,7 +10,7 @@ services:
     networks:
       - nodejs-network
 
-  sumaran-service:
+  beta-service:
     build:
       context: ./beta-service
     ports:
